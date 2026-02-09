@@ -1,0 +1,54 @@
+{
+  "name": "pannellum-js-tiles-generator",
+  "version": "1.0.0",
+  "description": "Client-side JavaScript library to generate Pannellum multi-resolution cubic tiles from equirectangular panorama images using WebGL",
+  "type": "module",
+  "main": "./dist/pannellum-js-tiles-generator.umd.cjs",
+  "module": "./dist/pannellum-js-tiles-generator.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/pannellum-js-tiles-generator.js",
+      "require": "./dist/pannellum-js-tiles-generator.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "pannellum",
+    "panorama",
+    "tiles",
+    "equirectangular",
+    "cubemap",
+    "webgl",
+    "three.js",
+    "multi-resolution"
+  ],
+  "author": "Goliash2",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Goliash2/pannellum-js-tiles-generator"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.0"
+  }
+}

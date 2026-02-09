@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pannellum Tiler – Server Upload (Raw)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
+    input[type="file"] { display: block; }
+    button { margin-top: 1rem; padding: 0.6rem 1.4rem; font-size: 1rem; cursor: pointer; border: none; border-radius: 6px; background: #0969da; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #log { margin-top: 1rem; padding: 0.75rem; background: #f6f8fa; border-radius: 6px; font-family: monospace; font-size: 0.8rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Pannellum Tiler – Server Upload (Raw Output)</h1>
+  <p>
+    This example shows how to use <code>output: 'raw'</code> to get structured
+    tile data and upload each tile individually to a server endpoint.
+  </p>
+
+  <label for="imageInput">Select equirectangular panorama:</label>
+  <input type="file" id="imageInput" accept="image/*" />
+
+  <label for="endpoint">Upload endpoint (mock):</label>
+  <input type="text" id="endpoint" value="/api/panorama/tile" style="width:100%; padding:0.4rem;" />
+
+  <button id="processBtn" disabled>Process &amp; Upload</button>
+  <div id="log">Waiting…</div>
+
+  <script type="module">
+    import { PannellumTiler } from '../src/index.ts';
+
+    const fileInput = document.getElementById('imageInput');
+    const btn = document.getElementById('processBtn');
+    const logEl = document.getElementById('log');
+
+    const log = (msg) => {
+      logEl.textContent += msg + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    fileInput.addEventListener('change', () => {
+      btn.disabled = !fileInput.files.length;
+    });
+
+    btn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      btn.disabled = true;
+      logEl.textContent = '';
+      log('Starting processing…');
+
+      const tiler = new PannellumTiler({ debug: true });
+
+      try {
+        const result = await tiler.process({
+          sourceImage: file,
+          output: 'raw',
+          tileSize: 512,
+          quality: 0.85,
+          onProgress: (e) => {
+            log(`[${e.stage}] ${Math.round(e.progress * 100)}% — ${e.message ?? ''}`);
+          },
+        });
+
+        log(`\nGenerated ${result.metadata.totalTiles} tiles`);
+        log(`Total size: ${(result.metadata.totalSize / 1024 / 1024).toFixed(2)} MB`);
+        log(`Max level: ${result.metadata.maxLevel}`);
+        log(`Cube resolution: ${result.metadata.cubeResolution}`);
+
+        // Show config.json
+        log('\n--- config.json ---');
+        log(result.config.json);
+
+        // Simulate uploading tiles
+        log('\n--- Simulated upload ---');
+        const endpoint = document.getElementById('endpoint').value;
+
+        for (const tile of result.tiles) {
+          // In a real scenario you would POST each tile:
+          // const formData = new FormData();
+          // formData.append('file', tile.blob, tile.path);
+          // await fetch(endpoint, { method: 'POST', body: formData });
+          log(`Would upload: ${tile.path}  (${tile.size} bytes)`);
+        }
+
+        log('\nAll tiles processed.');
+      } catch (err) {
+        log(`\nError: ${err.message}`);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        tiler.dispose();
+      }
+    });
+  </script>
+</body>
+</html>

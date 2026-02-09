@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pannellum Tiler – ZIP Download</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
+    input[type="file"] { display: block; }
+    button { margin-top: 1rem; padding: 0.6rem 1.4rem; font-size: 1rem; cursor: pointer; border: none; border-radius: 6px; background: #0969da; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #progress { margin-top: 1rem; padding: 0.75rem; background: #f6f8fa; border-radius: 6px; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; min-height: 2rem; }
+    .bar { height: 6px; background: #0969da; border-radius: 3px; transition: width 0.15s; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Pannellum Tile Generator – ZIP Download</h1>
+
+  <label for="imageInput">Select equirectangular panorama image:</label>
+  <input type="file" id="imageInput" accept="image/*" />
+
+  <label for="tileSize">Tile size (px):</label>
+  <input type="number" id="tileSize" value="512" min="64" max="2048" step="64" />
+
+  <label for="quality">JPEG quality (0–100):</label>
+  <input type="number" id="quality" value="85" min="1" max="100" />
+
+  <button id="processBtn" disabled>Generate Tiles &amp; Download ZIP</button>
+
+  <div id="progress">Waiting for image…</div>
+  <div class="bar" id="bar" style="width: 0%"></div>
+
+  <script type="module">
+    import { PannellumTiler } from '../src/index.ts';
+
+    const fileInput = document.getElementById('imageInput');
+    const btn = document.getElementById('processBtn');
+    const progressEl = document.getElementById('progress');
+    const barEl = document.getElementById('bar');
+
+    fileInput.addEventListener('change', () => {
+      btn.disabled = !fileInput.files.length;
+    });
+
+    btn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      btn.disabled = true;
+      progressEl.textContent = 'Starting…';
+      barEl.style.width = '0%';
+
+      const tiler = new PannellumTiler({ debug: true });
+
+      try {
+        const tileSize = parseInt(document.getElementById('tileSize').value, 10) || 512;
+        const quality = (parseInt(document.getElementById('quality').value, 10) || 85) / 100;
+
+        const result = await tiler.process({
+          sourceImage: file,
+          output: 'zip',
+          tileSize,
+          quality,
+          onProgress: (e) => {
+            const pct = Math.round(e.progress * 100);
+            progressEl.textContent = `[${e.stage}] ${pct}%  ${e.message ?? ''}`;
+            barEl.style.width = `${pct}%`;
+          },
+        });
+
+        // Trigger browser download
+        const url = URL.createObjectURL(result.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'panorama-tiles.zip';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        progressEl.textContent =
+          `Done! ${result.metadata.totalTiles} tiles, ` +
+          `${(result.metadata.totalSize / 1024 / 1024).toFixed(2)} MB`;
+        barEl.style.width = '100%';
+      } catch (err) {
+        progressEl.textContent = `Error: ${err.message}`;
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        tiler.dispose();
+      }
+    });
+  </script>
+</body>
+</html>

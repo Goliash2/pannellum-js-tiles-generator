@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pannellum Tiler – Progress Tracking</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
+    input[type="file"] { display: block; }
+    button { margin-top: 1rem; padding: 0.6rem 1.4rem; font-size: 1rem; cursor: pointer; border: none; border-radius: 6px; background: #0969da; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .stage { margin-top: 0.75rem; }
+    .stage-name { font-weight: 600; font-size: 0.9rem; }
+    .track { height: 10px; background: #e1e4e8; border-radius: 5px; overflow: hidden; margin-top: 0.25rem; }
+    .fill { height: 100%; background: #0969da; border-radius: 5px; transition: width 0.1s; }
+    .fill.done { background: #2da44e; }
+    .info { font-size: 0.8rem; color: #57606a; margin-top: 0.15rem; font-family: monospace; }
+    #summary { margin-top: 1.5rem; padding: 0.75rem; background: #dafbe1; border-radius: 6px; display: none; }
+    #summary.error { background: #ffebe9; }
+    .faces { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+    .face-preview { text-align: center; }
+    .face-preview canvas { display: block; border: 1px solid #d0d7de; border-radius: 4px; }
+    .face-preview span { font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <h1>Pannellum Tiler – Progress Tracking</h1>
+
+  <label for="imageInput">Select equirectangular panorama:</label>
+  <input type="file" id="imageInput" accept="image/*" />
+  <button id="processBtn" disabled>Process (Stream Output)</button>
+
+  <div id="stages">
+    <div class="stage" id="stage-loading">
+      <div class="stage-name">1. Loading</div>
+      <div class="track"><div class="fill" id="bar-loading" style="width:0%"></div></div>
+      <div class="info" id="info-loading"></div>
+    </div>
+    <div class="stage" id="stage-reprojection">
+      <div class="stage-name">2. Reprojection (WebGL)</div>
+      <div class="track"><div class="fill" id="bar-reprojection" style="width:0%"></div></div>
+      <div class="info" id="info-reprojection"></div>
+    </div>
+    <div class="stage" id="stage-tiling">
+      <div class="stage-name">3. Tile Generation</div>
+      <div class="track"><div class="fill" id="bar-tiling" style="width:0%"></div></div>
+      <div class="info" id="info-tiling"></div>
+    </div>
+    <div class="stage" id="stage-streaming">
+      <div class="stage-name">4. Streaming Tiles</div>
+      <div class="track"><div class="fill" id="bar-streaming" style="width:0%"></div></div>
+      <div class="info" id="info-streaming"></div>
+    </div>
+  </div>
+
+  <div id="summary"></div>
+
+  <script type="module">
+    import { PannellumTiler } from '../src/index.ts';
+
+    const fileInput = document.getElementById('imageInput');
+    const btn = document.getElementById('processBtn');
+    const summary = document.getElementById('summary');
+
+    fileInput.addEventListener('change', () => {
+      btn.disabled = !fileInput.files.length;
+    });
+
+    function setBar(stage, pct, text) {
+      const bar = document.getElementById(`bar-${stage}`);
+      const info = document.getElementById(`info-${stage}`);
+      if (bar) { bar.style.width = `${pct}%`; if (pct >= 100) bar.classList.add('done'); }
+      if (info && text) info.textContent = text;
+    }
+
+    btn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      btn.disabled = true;
+      summary.style.display = 'none';
+      summary.className = '';
+
+      // Reset bars
+      for (const s of ['loading', 'reprojection', 'tiling', 'streaming']) {
+        setBar(s, 0, '');
+        document.getElementById(`bar-${s}`)?.classList.remove('done');
+      }
+
+      const tiler = new PannellumTiler({ debug: true });
+      const start = performance.now();
+
+      try {
+        const result = await tiler.process({
+          sourceImage: file,
+          output: 'stream',
+          tileSize: 512,
+          quality: 0.85,
+          onProgress: (e) => {
+            const pct = Math.round(e.progress * 100);
+            setBar(e.stage, pct, `${pct}% — ${e.message ?? ''}`);
+          },
+        });
+
+        // Consume the stream
+        let streamedCount = 0;
+        const total = result.metadata.totalTiles + 1; // +1 for config
+        for await (const item of result.tiles) {
+          streamedCount++;
+          const pct = Math.round((streamedCount / total) * 100);
+          setBar('streaming', pct, `${streamedCount}/${total} — ${item.path}`);
+        }
+        setBar('streaming', 100, `Done — ${streamedCount} items`);
+
+        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        summary.style.display = 'block';
+        summary.textContent =
+          `Completed in ${elapsed}s — ${result.metadata.totalTiles} tiles, ` +
+          `${(result.metadata.totalSize / 1024 / 1024).toFixed(2)} MB total, ` +
+          `maxLevel=${result.metadata.maxLevel}, cubeRes=${result.metadata.cubeResolution}`;
+      } catch (err) {
+        summary.style.display = 'block';
+        summary.className = 'error';
+        summary.textContent = `Error: ${err.message}`;
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        tiler.dispose();
+      }
+    });
+  </script>
+</body>
+</html>
