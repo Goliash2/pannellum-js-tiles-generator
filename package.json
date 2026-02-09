@@ -14,11 +14,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "vite.config.ts",
+    "tsconfig.json"
   ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "prepare": "npm run build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
